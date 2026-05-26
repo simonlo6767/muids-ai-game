@@ -4,14 +4,16 @@ namespace SpriteKind {
 
 let player: Sprite = null
 let ghosts: Sprite[] = []
+let platforms: Sprite[] = []
+
 let carriedGhost = false
 let danger = 0
 let dangerMax = 6
 let onGhost = false
 let jumpAvailable = true
 let gameOver = false
+
 let finish: Sprite = null
-let ground: Sprite = null
 
 let aimAngle = 0
 let aimLine: Sprite = null
@@ -27,9 +29,11 @@ function startGame() {
     sprites.destroyAllSpritesOfKind(SpriteKind.Goal)
     sprites.destroyAllSpritesOfKind(SpriteKind.Food)
 
-    scene.setBackgroundColor(9)
+    scene.setBackgroundColor(15)
 
     ghosts = []
+    platforms = []
+
     carriedGhost = false
     danger = 0
     onGhost = false
@@ -37,6 +41,7 @@ function startGame() {
     gameOver = false
     aimAngle = 0
 
+    // PLAYER
     player = sprites.create(img`
         . . 2 2 2 . .
         . 2 2 2 2 2 .
@@ -47,25 +52,54 @@ function startGame() {
     controller.moveSprite(player, 100, 0)
     player.ay = 500
 
-    ground = sprites.create(img`
-        8888888888888888888888888888888888888888
-    `, SpriteKind.Food)
-    ground.setPosition(40, 110)
+    scene.cameraFollowSprite(player)
 
-    player.setPosition(40, ground.y - 6)
+    // ==========================
+    // MAP (IMPROVED SPACING)
+    // ==========================
+    function makePlatform(x: number, y: number, w: number) {
+        let p = sprites.create(image.create(w, 6), SpriteKind.Food)
+        p.image.fill(8)
+        p.setPosition(x, y)
+        platforms.push(p)
+    }
 
+    // Start (safe)
+    makePlatform(40, 110, 60)
+
+    // Wide + varied jumps
+    makePlatform(180, 85, 50)
+    makePlatform(320, 55, 50)
+    makePlatform(480, 95, 50)
+    makePlatform(650, 60, 50)
+    makePlatform(820, 90, 50)
+
+    // Final platform (challenge)
+    makePlatform(1000, 70, 80)
+
+    // Spawn player safely
+    player.setPosition(40, 100)
+
+    // ==========================
+    // GOAL
+    // ==========================
     finish = sprites.create(img`
         4 4 4 4 4 4 4 4 4 4
         4 . . . . . . . . 4
         4 . . . . . . . . 4
         4 4 4 4 4 4 4 4 4 4
     `, SpriteKind.Goal)
-    finish.setPosition(140, 60)
 
+    finish.setPosition(1000, 45)
+
+    // ==========================
+    // AIM LINE
+    // ==========================
     aimLine = sprites.create(img`
         1 1 1 1 1 1
         1 1 1 1 1 1
     `, SpriteKind.Projectile)
+
     aimLine.setFlag(SpriteFlag.Ghost, true)
 
     spawnGhost()
@@ -83,38 +117,34 @@ function spawnGhost() {
         . 5 5 .
     `, SpriteKind.Enemy)
 
-    g.setPosition(randint(80, 150), randint(30, 90))
+    g.setPosition(randint(player.x + 80, player.x + 200), randint(30, 100))
     ghosts.push(g)
 }
 
 // ==========================
 controller.A.onEvent(ControllerButtonEvent.Pressed, function () {
-    if (jumpAvailable && player.vy == 0) {
-        player.vy = -200
+    if (!gameOver && jumpAvailable && player.vy == 0) {
+        player.vy = -220
         jumpAvailable = false
     }
 })
 
 // AIM
 controller.up.onEvent(ControllerButtonEvent.Pressed, function () {
-    aimAngle -= 10
+    if (!gameOver) aimAngle -= 10
 })
 
 controller.down.onEvent(ControllerButtonEvent.Pressed, function () {
-    aimAngle += 10
+    if (!gameOver) aimAngle += 10
 })
 
-// ==========================
-// SHOOT / PLACE
 // ==========================
 controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
 
     if (gameOver) return
 
-    // PLACE
     if (carriedGhost) {
-
-        let length = 40
+        let length = 50
         let dx = Math.cos(aimAngle * Math.PI / 180) * length
         let dy = Math.sin(aimAngle * Math.PI / 180) * length
 
@@ -132,7 +162,6 @@ controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
         return
     }
 
-    // SHOOT
     let vx = Math.cos(aimAngle * Math.PI / 180) * 200
     let vy = Math.sin(aimAngle * Math.PI / 180) * 200
 
@@ -146,8 +175,6 @@ controller.B.onEvent(ControllerButtonEvent.Pressed, function () {
     bullet.vy = vy
 })
 
-// ==========================
-// BULLET → COLLECT
 // ==========================
 sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Enemy, function (bullet, ghost) {
 
@@ -170,22 +197,22 @@ sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Enemy, function (bullet, gho
 // ==========================
 game.onUpdate(function () {
 
-    if (gameOver) return
+    if (player.y > 140) loseGame()
 
-    if (player.y > 130) loseGame()
+    // PLATFORM COLLISION
+    for (let p of platforms) {
+        if (player.vy >= 0) {
+            let withinX = player.right > p.left && player.left < p.right
 
-    // GROUND COLLISION
-    if (player.vy >= 0) {
-        let withinX = player.right > ground.left && player.left < ground.right
-
-        if (withinX && player.bottom >= ground.top && player.bottom <= ground.top + 6) {
-            player.vy = 0
-            player.bottom = ground.top
-            jumpAvailable = true
+            if (withinX && player.bottom >= p.top && player.bottom <= p.top + 6) {
+                player.vy = 0
+                player.bottom = p.top
+                jumpAvailable = true
+            }
         }
     }
 
-    // GHOST PLATFORM COLLISION
+    // GHOST COLLISION
     for (let g of ghosts) {
         if (player.vy >= 0) {
             let withinX = player.right > g.left && player.left < g.right
@@ -198,60 +225,48 @@ game.onUpdate(function () {
         }
     }
 
-    // DANGER SYSTEM
-    onGhost = false
-    for (let g of ghosts) {
-        if (player.overlapsWith(g)) {
-            onGhost = true
+    if (!gameOver) {
+
+        // DANGER
+        onGhost = false
+        for (let g of ghosts) {
+            if (player.overlapsWith(g)) {
+                onGhost = true
+            }
+        }
+
+        if (onGhost) {
+            if (game.runtime() % 1000 < 30) danger += 1
+        } else {
+            danger = 0
+        }
+
+        info.setScore(danger)
+
+        if (danger >= dangerMax) loseGame()
+        if (player.overlapsWith(finish)) winGame()
+
+        // SPAWN SYSTEM
+        if (ghosts.length == 0) {
+            spawnGhost()
+            lastSpawnTime = game.runtime()
+        }
+
+        if (game.runtime() - lastSpawnTime > 10000) {
+            spawnGhost()
+            lastSpawnTime = game.runtime()
         }
     }
 
-    if (onGhost) {
-        if (game.runtime() % 1000 < 30) danger += 1
-    } else {
-        danger = 0
-    }
-
-    info.setScore(danger)
-
-    if (danger >= dangerMax) loseGame()
-    if (player.overlapsWith(finish)) winGame()
-
-    // ==========================
-    // INSTANT SPAWN FIX (IMPORTANT)
-    // ==========================
-    if (ghosts.length == 0) {
-        spawnGhost()
-        lastSpawnTime = game.runtime()
-    }
-
-    // Spawn every 10 seconds
-    if (game.runtime() - lastSpawnTime > 10000) {
-        spawnGhost()
-        lastSpawnTime = game.runtime()
-    }
-
     // AIM LINE
-    let length = 40
+    let length = 50
     let dx = Math.cos(aimAngle * Math.PI / 180) * length
     let dy = Math.sin(aimAngle * Math.PI / 180) * length
     aimLine.setPosition(player.x + dx, player.y + dy)
 
-    // VISUAL
-    if (carriedGhost) {
-        player.setImage(img`
-            . . 2 2 2 . .
-            . 2 2 5 2 2 .
-            . 2 2 2 2 2 .
-            . . 2 2 2 . .
-        `)
-    } else {
-        player.setImage(img`
-            . . 2 2 2 . .
-            . 2 2 2 2 2 .
-            . 2 2 2 2 2 .
-            . . 2 2 2 . .
-        `)
+    // STOP PLAYER AFTER END
+    if (gameOver) {
+        player.vx = 0
     }
 })
 
