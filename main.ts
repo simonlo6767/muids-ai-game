@@ -19,6 +19,37 @@ let aimLine: Sprite = null
 let coins = 0
 
 // ==========================
+// FUNCTIONS
+
+function makePlatform(x: number, y: number, w: number) {
+    let p = sprites.create(image.create(w, 6), SpriteKind.Food)
+    p.image.fill(8)
+    p.setPosition(x, y)
+    platforms.push(p)
+}
+
+function makeCoin(x: number, y: number) {
+    let c = sprites.create(img`
+        . 5 5 .
+        5 5 5 5
+        5 5 5 5
+        . 5 5 .
+    `, SpriteKind.Coin)
+    c.setPosition(x, y)
+}
+
+function spawnGhost(x: number, y: number) {
+    let g = sprites.create(img`
+        . 1 1 .
+        1 1 1 1
+        1 1 1 1
+        . 1 1 .
+    `, SpriteKind.Enemy)
+    g.setPosition(x, y)
+    ghosts.push(g)
+}
+
+// ==========================
 function startGame() {
 
     sprites.destroyAllSpritesOfKind(SpriteKind.Player)
@@ -40,6 +71,7 @@ function startGame() {
     gameOver = false
     aimAngle = 0
     coins = 0
+    info.setScore(0)
 
     // PLAYER
     player = sprites.create(img`
@@ -53,44 +85,13 @@ function startGame() {
     player.ay = 500
     scene.cameraFollowSprite(player)
 
-    function makePlatform(x: number, y: number, w: number) {
-        let p = sprites.create(image.create(w, 6), SpriteKind.Food)
-        p.image.fill(8)
-        p.setPosition(x, y)
-        platforms.push(p)
-    }
-
-    function makeCoin(x: number, y: number) {
-        let c = sprites.create(img`
-            . 5 5 .
-            5 5 5 5
-            5 5 5 5
-            . 5 5 .
-        `, SpriteKind.Coin)
-        c.setPosition(x, y)
-    }
-
-    function spawnGhost(x: number, y: number) {
-        let g = sprites.create(img`
-            . 1 1 .
-            1 1 1 1
-            1 1 1 1
-            . 1 1 .
-        `, SpriteKind.Enemy)
-        g.setPosition(x, y)
-        ghosts.push(g)
-    }
-
-    // ==========================
-    // 起 (SAFE INTRO)
+    // 起
     makePlatform(50, 110, 150)
     makeCoin(120, 40)
-
     spawnGhost(90, 80)
-    spawnGhost(140, 75) // NEW
+    spawnGhost(140, 75)
 
-    // ==========================
-    // 承 (FIXED HARD PART)
+    // 承
     makePlatform(300, 100, 60)
     makePlatform(450, 70, 60)
     makePlatform(600, 100, 60)
@@ -98,14 +99,12 @@ function startGame() {
     makeCoin(450, 40)
     makeCoin(600, 60)
 
-    // 🔥 MORE GHOSTS (IMPORTANT)
     spawnGhost(320, 80)
     spawnGhost(400, 60)
     spawnGhost(500, 80)
     spawnGhost(580, 60)
 
-    // ==========================
-    // 転 (ROOM)
+    // 転
     makePlatform(800, 110, 120)
     makePlatform(800, 50, 120)
 
@@ -125,36 +124,6 @@ function startGame() {
         2 2
     `, SpriteKind.Button)
     button.setPosition(850, 90)
-
-    // ==========================
-    // 結 (FINAL)
-    makePlatform(1100, 100, 150)
-    makePlatform(1300, 80, 80)
-    makePlatform(1400, 60, 80)
-
-    makeCoin(1100, 70)
-    makeCoin(1300, 50)
-    makeCoin(1400, 40)
-
-    // 🔥 MORE SUPPORT GHOSTS
-    spawnGhost(1120, 80)
-    spawnGhost(1280, 60)
-    spawnGhost(1380, 50)
-
-    let bigGhost = sprites.create(img`
-        1 1 1 1 1 1
-        1 1 1 1 1 1
-        1 1 1 1 1 1
-        1 1 1 1 1 1
-    `, SpriteKind.BigGhost)
-
-    bigGhost.setPosition(1200, 80)
-
-    let finalButton = sprites.create(img`
-        2 2
-        2 2
-    `, SpriteKind.Button)
-    finalButton.setPosition(1250, 90)
 
     // AIM
     aimLine = sprites.create(img`1 1 1 1`, SpriteKind.Projectile)
@@ -215,10 +184,16 @@ sprites.onOverlap(SpriteKind.Projectile, SpriteKind.Enemy, function (b, g) {
     carriedGhost = true
 })
 
+// ⭐ COIN → WIN
 sprites.onOverlap(SpriteKind.Player, SpriteKind.Coin, function (p, c) {
     c.destroy()
     coins += 1
     info.setScore(coins)
+
+    if (coins >= 6) {
+        game.splash("YOU WIN!")
+        game.reset()
+    }
 })
 
 sprites.onOverlap(SpriteKind.Player, SpriteKind.BigGhost, function () {
@@ -226,46 +201,39 @@ sprites.onOverlap(SpriteKind.Player, SpriteKind.BigGhost, function () {
     game.reset()
 })
 
+// FINAL LEVEL
 sprites.onOverlap(SpriteKind.Player, SpriteKind.Button, function (p, b) {
     b.destroy()
 
-    for (let i = 0; i < 12; i++) {
-        let c = sprites.create(img`
-            . 5 5 .
-            5 5 5 5
-            5 5 5 5
-            . 5 5 .
-        `, SpriteKind.Coin)
-        c.setPosition(randint(p.x - 60, p.x + 60), randint(30, 100))
+    player.setPosition(1100, 80)
+
+    makePlatform(1100, 110, 180)
+
+    for (let i = 1; i <= 6; i++) {
+        let px = 1100 + i * 180
+        if (i == 4) px += 120
+
+        let py = 100 - (i % 3) * 20
+
+        makePlatform(px, py, 60)
+        makeCoin(px, py - 25)
+        spawnGhost(px - 70, py - 10)
     }
 
-    let goal = sprites.create(img`
-        4 4 4
-        4 . 4
-        4 4 4
-    `, SpriteKind.Goal)
-
-    goal.setPosition(p.x + 40, p.y - 40)
-})
-
-sprites.onOverlap(SpriteKind.Player, SpriteKind.Goal, function () {
-    game.splash("YOU WIN!")
-    game.reset()
+    let finalBoss = sprites.create(img`
+        1 1 1 1 1 1
+        1 1 1 1 1 1
+        1 1 1 1 1 1
+        1 1 1 1 1 1
+    `, SpriteKind.BigGhost)
+    finalBoss.setPosition(1600, 80)
 })
 
 // ==========================
 game.onUpdate(function () {
 
-    // 🛟 SAFETY SYSTEM (NO SOFTLOCK)
     if (ghosts.length < 2) {
-        let g = sprites.create(img`
-            . 1 1 .
-            1 1 1 1
-            1 1 1 1
-            . 1 1 .
-        `, SpriteKind.Enemy)
-        g.setPosition(player.x + randint(60, 120), randint(40, 100))
-        ghosts.push(g)
+        spawnGhost(player.x + randint(60, 120), randint(40, 100))
     }
 
     for (let p of platforms) {
